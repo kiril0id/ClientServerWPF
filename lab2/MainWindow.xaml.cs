@@ -30,7 +30,7 @@ namespace lab2
         {
             InitializeComponent();
             
-        } 4
+        } 
 
         private  void StartServer(object sender, RoutedEventArgs e)
         {
