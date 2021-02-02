@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -8,101 +9,56 @@ using System.Threading.Tasks;
 
 namespace Client
 {
-   public class Program
+    class Program
     {
-        static string userName;
-        private const string host = "127.0.0.1";
-        private const int port = 8888;
-        static TcpClient client;
-        static NetworkStream stream;
-
-        public static void Main(string[] args)
+        static int port = 8005;
+        static string address = "127.0.0.1"; 
+        static void Main(string[] args)
         {
-            Console.Write("Введите свое имя: ");
-            userName = Console.ReadLine();
-            client = new TcpClient();
             try
             {
-                client.Connect(host, port); //подключение клиента
-                stream = client.GetStream(); // получаем поток
+                IPEndPoint ipPoint = new IPEndPoint(IPAddress.Parse(address), port);
+                Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+               
+                socket.Connect(ipPoint);
+                Console.WriteLine("Терминал банка\nЖелаете произвести операции с биткойнами.\nВведите величину которую хотите списать или положить(положительное число положить, отрицательное соответственно снять.)");
+                string message;
+                byte[] data;
+                while (true)
+                {
+                    try
+                    {
+                        message = Console.ReadLine();
+                        Convert.ToSingle(message.ToString());
+                        data = Encoding.Unicode.GetBytes(message);
+                        socket.Send(data);
+                        break;
+                    }
+                    catch
+                    {
+                        Console.WriteLine("Unknown формат попрубуйте ещё раз! \n Например: +20 , -13,5 \n");
+                    }
+                }
 
-                string message = userName;
-                byte[] data = Encoding.Unicode.GetBytes(message);
-                stream.Write(data, 0, data.Length);
+                data = new byte[256]; 
+                StringBuilder builder = new StringBuilder();
+                int bytes = 0;
+                do
+                {
+                    bytes = socket.Receive(data, data.Length, 0);
+                    builder.Append(Encoding.Unicode.GetString(data, 0, bytes));
+                }
+                while (socket.Available > 0);
 
-                // запускаем новый поток для получения данных
-                Thread receiveThread = new Thread(new ThreadStart(ReceiveMessage));
-                receiveThread.Start(); //старт потока
-                Console.WriteLine("Добро пожаловать, {0}", userName);
-                SendMessage();
+                Console.WriteLine("ответ сервера: " + builder.ToString());
+                socket.Shutdown(SocketShutdown.Both);
+                socket.Close();
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
-            finally
-            {
-                Disconnect();
-            }
-        }
-        // отправка сообщений
-        static void SendMessage()
-        {
-            Console.WriteLine("Введите сообщение: ");
-
-            while (true)
-            {
-                string message = Console.ReadLine();
-               // float number;
-                try
-                {
-                    Convert.ToSingle(message.ToString());
-                    byte[] data = Encoding.Unicode.GetBytes(message);
-                    stream.Write(data, 0, data.Length);
-                }
-                catch
-                {
-                    Console.WriteLine( "Unknown формат попрубуйте ещё раз! \n Например: +20 , -13.5 \n");                    
-                }
-               
-            }
-        }
-        // получение сообщений
-         static void ReceiveMessage()
-        {
-            while (true)
-            {
-                try
-                {
-                    byte[] data = new byte[64]; // буфер для получаемых данных
-                    StringBuilder builder = new StringBuilder();
-                    int bytes = 0;
-                    do
-                    {
-                        bytes = stream.Read(data, 0, data.Length);
-                        builder.Append(Encoding.Unicode.GetString(data, 0, bytes));
-                    }
-                    while (stream.DataAvailable);
-
-                    string message = builder.ToString();
-                    Console.WriteLine(message);//вывод сообщения
-                }
-                catch
-                {
-                    Console.WriteLine("Подключение прервано!"); //соединение было прервано
-                    Console.ReadLine();
-                    Disconnect();
-                }
-            }
-        }
-
-        static void Disconnect()
-        {
-            if (stream != null)
-                stream.Close();//отключение потока
-            if (client != null)
-                client.Close();//отключение клиента
-            Environment.Exit(0); //завершение процесса
+            Console.ReadKey();
         }
     }
 }
